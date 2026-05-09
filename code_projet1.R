@@ -121,7 +121,7 @@ cols_to_drop <- unique(indices_to_remove[, 2])
 colnames(df)[cols_to_drop]
 
 # Supprimons les variables très corrélées car elles sont redondantes
-df <- df[, !(names(df) %in% cols_to_drop)]
+df_clean <- df_clean[, !(names(df_clean) %in% cor_to_drop)]
 
 p = ncol(df)
 
@@ -222,7 +222,6 @@ df_train = df[train == TRUE,]
 ################
 
 #On filtre les échantillons pour ne garder que les genres Classical et Jazz
-
 df_train_nouveau = df_train[df_train$GENRE %in% c("Classical", "Jazz"), ]
 df_test = df[train == FALSE,] #à mettre q4?
 df_test_nouveau = df_test[df_test$GENRE %in% c("Classical", "Jazz"), ]
@@ -230,16 +229,45 @@ df_test_nouveau = df_test[df_test$GENRE %in% c("Classical", "Jazz"), ]
 ### ModT
 ModT = glm(GENRE~.,data = df_train_nouveau, family = binomial) # . si on a supprimé les variables non significatives question 1 
 resT = summary(ModT)
+
 ### Mod1
 var_sign1= names(which(resT$coefficients[,4][-1]<0.05))
 nom_var_sign1=paste(var_sign1,collapse = "+")
-#formula_mod1=as.formula(paste("GENRE ~",nom_var_sign1)
-Mod1 = glm(GENRE~as.formula(nom_var_sign1), data=df_train_nouveau,family=binomial)
-#peut-être mettre as.formula devant nom_var_sign1
+formula_1=paste("GENRE ~",nom_var_sign1)
+formula_mod1=as.formula(formula_1)
+Mod1 = glm(formula_mod1, data=df_train_nouveau,family=binomial)
 
 ### Mod2
 var_sign2= names(which(resT$coefficients[,4][-1]<0.2))
 nom_var_sign2=paste(var_sign2,collapse = "+")
-Mod2 =glm(GENRE~nom_var_sign2, data=df_train_nouveau,family=binomial)
+formula_2=paste("GENRE ~",nom_var_sign2)
+formula_mod2=as.formula(formula_2)
+Mod2 =glm(formula_mod2, data=df_train_nouveau,family=binomial)
 
 ### ModAIC
+#A FAIRE
+
+################
+### Q2
+################
+library(ROCR)
+
+#df_train_nouveau$GENRE <- droplevels(df_train_nouveau$GENRE) #chat on a vu ça en cours??? 
+
+#Sur l'échantillon d'apprentissage : 
+predprobaT_train=predict(ModT,type="response", data = df_train_nouveau)
+predT_train = prediction(predprobaT_train,df_train_nouveau$GENRE)
+ROCT_train = performance(predT_train,"tpr","fpr")
+plot(ROCT_train,main="ModT Apprentissage")
+
+#Sur l'échantillon de test : 
+predprobaT_test=predict(ModT,type="response", newdata = df_test_nouveau)
+predT_test = prediction(predprobaT_test,df_test_nouveau$GENRE)
+ROCT_test = performance(predT_test,"tpr","fpr")
+plot(ROCT_test,main="ModT Test")
+
+#Superposition
+plot(ROCT_train,main="Courbes ROC ModT")
+plot(ROCT_test,col="red",add=TRUE)
+
+#A FINIR
