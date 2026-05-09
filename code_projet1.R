@@ -14,7 +14,8 @@ set.seed (1)
 ###
 ######################## Partie I ########################## 
 ###
-setwd(dir = "C:/Users/laura/Desktop/Lauu/ENSTA/2A/info/STA03_proj")
+#setwd(dir = "C:/Users/laura/Desktop/Lauu/ENSTA/2A/info/STA03_proj")
+#setwd(dir = "C:/Users/laura/Desktop/Lauu/ENSTA/2A/info/STA03_proj")
 df = read.table("Music_2026.txt", header=TRUE, sep=";",dec='.')
 
 df$GENRE = as.factor(df$GENRE)
@@ -120,7 +121,7 @@ cols_to_drop <- unique(indices_to_remove[, 2])
 colnames(df)[cols_to_drop]
 
 # Supprimons les variables très corrélées car elles sont redondantes
-df_clean <- df_clean[, !(names(df_clean) %in% cor_to_drop)]
+df <- df[, !(names(df) %in% cols_to_drop)]
 
 p = ncol(df)
 
@@ -210,6 +211,35 @@ cat("Indice de silhouette moyen (GENRE) :", mean_sil_genre, "\n")
 set.seed(103)
 train = sample(c(TRUE,FALSE),n,rep=TRUE,prob=c(2/3,1/3))
 
+df_train = df[train == TRUE,]
+
 ###
 ######################## Partie II ########################## 
 ###
+
+################
+### Q1
+################
+
+#On filtre les échantillons pour ne garder que les genres Classical et Jazz
+
+df_train_nouveau = df_train[df_train$GENRE %in% c("Classical", "Jazz"), ]
+df_test = df[train == FALSE,] #à mettre q4?
+df_test_nouveau = df_test[df_test$GENRE %in% c("Classical", "Jazz"), ]
+
+### ModT
+ModT = glm(GENRE~.,data = df_train_nouveau, family = binomial) # . si on a supprimé les variables non significatives question 1 
+resT = summary(ModT)
+### Mod1
+var_sign1= names(which(resT$coefficients[,4][-1]<0.05))
+nom_var_sign1=paste(var_sign1,collapse = "+")
+#formula_mod1=as.formula(paste("GENRE ~",nom_var_sign1)
+Mod1 = glm(GENRE~as.formula(nom_var_sign1), data=df_train_nouveau,family=binomial)
+#peut-être mettre as.formula devant nom_var_sign1
+
+### Mod2
+var_sign2= names(which(resT$coefficients[,4][-1]<0.2))
+nom_var_sign2=paste(var_sign2,collapse = "+")
+Mod2 =glm(GENRE~nom_var_sign2, data=df_train_nouveau,family=binomial)
+
+### ModAIC
