@@ -137,32 +137,54 @@ p = ncol(df)
 liste = c("PAR_ASE_M", "PAR_ASE_MV", "PAR_SFM_M", "PAR_SFM_MV")
 mat_corr = cor(df[, liste], use = "complete.obs")
 mat_corr
-# Les variables PAR_ASE_M, PAR_ASE_MV, PAR_SFM_M et PAR_SFM_MV ne semblent pas très corrélées enre elles
+# Les variables PAR_ASE_M, PAR_ASE_MV, PAR_SFM_M et PAR_SFM_MV ne semblent pas très corrélées entre elles
 
-boxplot(PAR_SFM_MV ~ GENRE, data = df)
-boxplot(PAR_SFM_M ~ GENRE, data = df)
-boxplot(PAR_ASE_M ~ GENRE, data = df)
-boxplot(PAR_ASE_MV ~ GENRE, data = df)
+summary(df$PAR_SFM_MV)
+#      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+# 0.0002265 0.0005505 0.0006296 0.0006291 0.0007101 0.0012263 
+summary(df$PAR_SFM_M)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.02342 0.05626 0.06263 0.06221 0.06861 0.09044 
+summary(df$PAR_ASE_MV)
+#      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+# 6.486e-05 3.261e-04 3.951e-04 4.401e-04 5.042e-04 1.457e-03 
+summary(df$PAR_ASE_M)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# -0.1692 -0.1646 -0.1634 -0.1635 -0.1623 -0.1575 
 
-plot(df$PAR_ASE_M, df$PAR_ASE_MV, col = as.factor(df$GENRE)) 
-plot(df$PAR_SFM_M, df$PAR_SFM_MV, col = as.factor(df$GENRE)) 
+# Faible dispersion: Pour PAR_SFM_M et PAR_ASE_M, l'écart entre le premier et 
+# le troisième quartile est extrêmement réduit. Les données sont assez homogènes
+# dans notre dataset.
+# On remarque également des ordres de grandeur très différents : PAR_ASE_M est négative (autour de -0.16), 
+# tandis que PAR_SFM_MV est proche de 0.0006.
 
-# On ne voit rien de particulier
+# Cette différence d'échelle montre qu'une normalisation (centrage-réduction) sera 
+# indispensable pour la suite du projet, notamment pour la classification hiérarchique 
+# (Question 3), afin d'éviter qu'une variable n'écrase les autres par son simple poids numérique.
+
+df_scaled <- scale(df[, -p]) # On centre et réduit
 
 ################
 ### Q2
 ################
 
-res = PCA(df[,-p])
+res = PCA(df_scaled)
 V = res$var
-plot(res,choix="var", cex = 0.3, shadow = TRUE)  
+
+plot(res,choix="var", cex = 0.3, shadow = TRUE)
+#  Bonne représentation dans le premier plan principal: 30,45% de la variance totale
+# et flèches longues.
+
 
 # Représentation du jeu de données sur les deux premiers plans principaux
+pdf("PCA_1et2.pdf")
 par(mfrow=c(1,2))  
 plt1 = plot(res,axes = c(1,2), choix = "var", cex = 0.3, shadow = TRUE)
 plt2 = plot(res,axes = c(2,3), choix = "var", cex = 0.3, shadow = TRUE)
 cowplot::plot_grid(plt1, plt2, ncol = 2, nrow = 1)
-# Ces plans ne permettent pas de bien discriminer les observations
+dev.off()
+# Ces plans ne permettent pas de bien discriminer les observations, 
+# mais confirment la corrélation vue précédemment (flèches regroupées).
 
 
 ################
@@ -172,39 +194,42 @@ cowplot::plot_grid(plt1, plt2, ncol = 2, nrow = 1)
 # Calcul de la matrice de distance (nécessaire pour la silhouette)
 # On utilise df[,-p] pour exclure la colonne GENRE du calcul de distance
 p = ncol(df)
-dists = dist(df[, -p])
+dists = dist(df_scaled)
 
 # Silhouette pour la classification hiérarchique (Ward) avec k=5 (car 5 genres)
 # unique(df$GENRE)
-res_ward = hcut(df[, -p], k = 5, hc_method = "ward.D2")
+res_ward = hcut(df_scaled, k = 5, hc_method = "ward.D2")
 sil_ward = silhouette(res_ward$cluster, dists)
 fviz_silhouette(sil_ward, main = "Silhouette - Clustering Ward (k=5)")
 
+# Avant normalisation, le clustering n'avait pas réussi à séparer les genres musicaux. 
+# Il avait simplement isolé quelques valeurs aberrantes (outliers) très éloignées des autres 
+# et avait mis tout le reste dans un seul et même groupe.
 #   cluster size ave.sil.width
 #1       1 7745          0.99
 #2       2    3          0.27
 #3       3   22          0.49
 #4       4    2          1.00
 #5       5    1          0.00
-
-# Le clustering n'a pas réussi à séparer les genres musicaux. 
-# Il a simplement isolé quelques valeurs aberrantes (outliers) très éloignées des autres 
-# et a mis tout le reste dans un seul et même groupe.
-# Essayons de centrer et réduire les variables pour éviter ce phénomène.
-
-df_scaled <- scale(df[, -p]) # On centre et réduit
-dists = dist(df_scaled)
-res_ward = hcut(df_scaled, k = 5, hc_method = "ward.D2")
-sil_ward = silhouette(res_ward$cluster, dists)
-fviz_silhouette(sil_ward, main = "Silhouette - Clustering Ward (k=5)")
-# Les résultats sont bien plus satisfaisants.
-
+# Après normalisation nous obtenons:
+# cluster size ave.sil.width
+# 1       1 1516         -0.04
+# 2       2 2244         -0.01
+# 3       3 2489          0.08
+# 4       4  766          0.10
+# 5       5  758          0.25
 
 
 ## Silhouette pour la classification réelle (GENRE)
 # On transforme le facteur GENRE en vecteurs d'entiers pour la fonction silhouette
 sil_genre = silhouette(as.integer(df$GENRE), dists)
 fviz_silhouette(sil_genre, main = "Silhouette - Classification par GENRE")
+# cluster size ave.sil.width
+# 1       1 1074          0.03
+# 2       2 2318          0.12
+# 3       3 2036         -0.10
+# 4       4 1033          0.00
+# 5       5 1312          0.16
 
 # Comparaison des indices moyens
 mean_sil_ward = mean(sil_ward[, 3])
@@ -214,7 +239,7 @@ cat("Indice de silhouette moyen (Ward k=5) :", mean_sil_ward, "\n")
 # Indice de silhouette moyen (Ward k=5) : 0.07058402  
 
 cat("Indice de silhouette moyen (GENRE) :", mean_sil_genre, "\n")
-# Indice de silhouette moyen (GENRE) : -0.04031123  
+# Indice de silhouette moyen (GENRE) : 0.04031123  
 
 # Les scores sont très bas: les clusters se chevauchent. 
 # Ceci peut être expliqué en partie par des morceaux de "Jazz-Rock" ou de "Pop-Rock" à cheval entre deux groupes.
@@ -247,9 +272,15 @@ df_train = df[train == TRUE,]
 
 #On filtre les échantillons pour ne garder que les genres Classical et Jazz
 df_train_nouveau = df_train[df_train$GENRE %in% c("Classical", "Jazz"), ]
+
+#df_train_nouv_scaled <- scale(df_train_nouveau[,-p])
+
 df_test = df[train == FALSE,]
 df_test_nouveau = df_test[df_test$GENRE %in% c("Classical", "Jazz"), ]
 # Ils contiennent bien 2851 et 1503 observations.
+
+#df_test_nouv_scaled <- scale(df_test_nouveau[,-p])
+
 
 ### ModT
 ModT = glm(GENRE~.,data = df_train_nouveau, family = binomial) # . si on a supprimé les variables non significatives question 1 
@@ -386,7 +417,11 @@ df_test_nouveau$GENRE <- droplevels(df_test_nouveau$GENRE)
 predprobaT_train=predict(ModT,type="response", data = df_train_nouveau)
 predT_train = prediction(predprobaT_train,df_train_nouveau$GENRE)
 ROCT_train = performance(predT_train,"tpr","fpr")
+
+par(mfrow=c(1,1))  
 plot(ROCT_train,main="ModT Apprentissage")
+
+
 
 #Sur l'échantillon de test : 
 predprobaT_test=predict(ModT,type="response", newdata = df_test_nouveau)
@@ -395,15 +430,15 @@ ROCT_test = performance(predT_test,"tpr","fpr")
 plot(ROCT_test,main="ModT Test")
 
 #Superposition
+pdf("Superposition Courbes ROC ModT.pdf")
 plot(ROCT_train,main="Courbes ROC ModT")
 plot(ROCT_test,col="red",add=TRUE)
 lines(c(0,1),c(0,1),lty=2, col = 'blue')          # règle aléatoire 
 segments(x0=0,y0=1,x1=1,y1=1,lty=2 , col = 'green') # règle parfaite
 segments(x0=0,y0=0,x1=0,y1=1,lty=2 , col = 'green') 
 legend(0.5,0.4,legend=c("ModT : Apprentissage", "ModT : Données" , "Règle aléatoire", "Règle parfaite"),col=c("red","black","blue","green"),lty=c(1,1,2,2))
+dev.off()
 
-
-#A FINIR
 
 ## Autres modeles sur echantillon test
 #ModT
@@ -514,8 +549,11 @@ error_classif(df_test_nouveau,ModAIC) # 0.09314704
 
 library(glmnet)
 
+# Normalisation indispensable pour ridge:
+df_scaled_nouveau <- scale(df_train_nouveau[,-p])
+
 grid = 10^seq(10, -2, length = 100) # la grille de lambda
-x = as.matrix(df_train_nouveau[,-p])
+x = as.matrix(df_scaled_nouveau)
 y = df_train_nouveau$GENRE
 
 ridge.fit = glmnet(x,y,alpha=0,lambda=grid, family = "binomial")
@@ -531,8 +569,8 @@ names(coeffs_lambda1) <- rownames(coef(ridge.fit))[-1]
 # On les trie par valeur absolue (pour voir l'importance réelle, positive ou négative)
 coeffs_tries <- sort(abs(coeffs_lambda1), decreasing = TRUE)
 # Affichons les 10 variables les plus importantes
-head(coeffs_tries, 10) # Valeurs très faibles: entre 10^-6 et 10^-8
-# Le modèle prédit presque toujours la moyenne de $y$. 
+head(coeffs_tries, 10) # Valeurs très faibles, de l'ordre de 10^-11
+# Le modèle prédira presque toujours la moyenne de $y$. 
 # C'est du sous-apprentissage, le biais est très élevé, mais la variance est nulle.
 
 
@@ -544,13 +582,16 @@ names(coeffs_lambda2) <- rownames(coef(ridge.fit))[-1]
 # On les trie par valeur absolue (pour voir l'importance réelle, positive ou négative)
 coeffs_tries <- sort(abs(coeffs_lambda2), decreasing = TRUE)
 # Affichons les 10 variables les plus importantes
-head(coeffs_tries, 10) # Valeurs très faibles: entre 10^5 et 10^3
-# proche d'une régression linéaire classique
-# Le modèle est très complexe. Le risque est le sur-apprentissage: 
-# le modèle apprend le "bruit" des données. La variance est élevée
+head(coeffs_tries, 10) # de l'ordre de 10^-1
+# Le modèle est très complexe. Le risque est le sur-apprentissage.
+# Dans le cercle des corrélations (ACP), ces variables (SFM, ASE, MFCC) étaient 
+# celles qui avaient les flèches les plus longues. Ridge confirme ici 
+# ce que l'ACP montrait visuellement : ce sont elles qui portent l'essentiel de la variance explicative du genre.
 
-
+pdf("coefficients_ridge_surlambda.pdf")
+par(mfrow=c(1,1))  
 plot(ridge.fit, xvar = "lambda", label = TRUE)
+dev.off()
 # Plus lambda diminue plus les coefficientss s'expriment et se rapprochent 
 # de la valeur de la regression linéaire classique
 
@@ -562,17 +603,18 @@ library(forecast)
 
 set.seed(123)
 
-x = as.matrix(df_train_nouveau[, colnames(df_train_nouveau) != "GENRE"])
+#x = as.matrix(df_train_nouveau[, colnames(df_train_nouveau) != "GENRE"])
+x = as.matrix(df_scaled_nouveau)
 
 train = sample(1:nrow(x), 2*nrow(x)/3) # proportion 1/3 -test et 2/3 -apprentissage
 test= -train
 
 cv.out = cv.glmnet(x[train,],as.numeric(y[train]) - 1,alpha=0,nfolds = 10,lambda=grid)
 
-# pdf("Fig-Ridge-cv.pdf")
+pdf("Fig-Ridge-cv.pdf")
 par(mfrow=c(1,1))
 plot(cv.out)
-# dev.off()
+dev.off()
 
 ## Algorithme de cv.glmnet:
 # Il effectue une validation croisée en k segments (nfolds = 10):  
@@ -598,10 +640,11 @@ plot(cv.out)
 # Le nombre 167 en haut confirme que Ridge conserve toutes les variables, 
 # stabilisant leurs coefficients sans les annuler.
 
-# Les lignes verticales en pointillés :La première ligne à gauche correspond à lambda.min : 
+# La première ligne verticale en pointillés à gauche correspond à lambda.min : 
 # c'est la valeur de lambda qui minimise l'erreur de validation croisée.
 # La seconde ligne (plus à droite) correspond à lambda.1se : 
-# c'est le modèle le plus simple (plus régularisé) dont l'erreur reste à moins d'un écart-type du minimum
+# c'est le modèle le plus simple (plus régularisé) dont l'erreur reste à moins 
+# d'un écart-type du minimum
 
 
 ## lambda minimisant l'erreur de prédiction par VC
@@ -609,18 +652,15 @@ meilleur_lam = cv.out$lambda.min # 0.01
 log(meilleur_lam) # -4.60517
 
 # Estimation de l'erreur sur l'échantillon de test
-#ridge.fit = glmnet(x[train,],as.numeric(y[train]),alpha=0,lambda=meilleur_lam)
-#ridge.pred = predict(ridge.fit,s=meilleur_lam,newx=x[test,])
-
 ridge.prob = predict(cv.out, s = meilleur_lam, newx = x[test,], type = "response")
 ridge.pred = ifelse(ridge.prob > 0.5, 1, 0)
 
 y_test_reel = as.numeric(as.factor(df_train_nouveau$GENRE[test])) - 1
 
 erreur_ridge = mean(ridge.pred != y_test_reel)
-print(erreur_ridge) # 0.1051525 (soit environ 10,5% d'erreur)
+print(erreur_ridge) # 0.09568875 (soit environ 9,6% d'erreur)
 # Notons que ModAIC affichait une erreur de 9,31% et ModT environ 9,44%. 
-# Ainsi, obtenir 10,5% avec la régression Ridge semble cohérent.
+# Ainsi, obtenir 9,6% avec la régression Ridge semble cohérent.
 
 # Remarque: ModAIC était bien plus long à calculer que Ridge, et les erreurs sont proches...
 
