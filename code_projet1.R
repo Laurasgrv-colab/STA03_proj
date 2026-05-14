@@ -18,14 +18,10 @@ set.seed (1)
 ###
 ######################## Partie I ########################## 
 ###
-setwd(dir = "C:/Users/laura/Desktop/Lauu/ENSTA/2A/info/STA03_proj")
+setwd(dir = "C:/Users/laura/Desktop/Lauu/ENSTA/2A/info/STA03/projet")
 df = read.table("Music_2026.txt", header=TRUE, sep=";",dec='.')
 
 df$GENRE = as.factor(df$GENRE)
-
-#  # Vérifions que GENRE est un facteur et supprimons les lignes avec des NA
-#  df <- na.omit(df) # Supprime les lignes contenant des valeurs manquantes
-#  df$GENRE <- as.factor(df$GENRE)
 
 
 dim(df)
@@ -667,32 +663,90 @@ print(erreur_ridge) # 0.09568875 (soit environ 9,6% d'erreur)
 
 
 
+
 ################
 ### Q5
 ################
 
-# Idée:
-# À corriger !!!!!
+# Préparer les données de test (doivent être scalées comme l'apprentissage)
+# On utilise les paramètres de la normalisation de l'apprentissage pour le test
+x_test_final = as.matrix(scale(df_test_nouveau[, -p])) 
 
-pred_ridge = prediction(ridge.prob, df_test_nouveau$GENRE)
+# Prédire les probabilités sur le vrai échantillon de test
+# On utilise le meilleur lambda trouvé par validation croisée (meilleur_lam)
+ridge.prob_test = predict(cv.out, s = meilleur_lam, newx = x_test_final, type = "response")
+
+# ridge.prob_test est une matrice, on la transforme en vecteur numérique
+pred_ridge = prediction(as.numeric(ridge.prob_test), df_test_nouveau$GENRE)
 ROC_ridge = performance(pred_ridge, "tpr", "fpr")
-AUC_ridge = performance(pred_ridge, "auc")@y.values[[1]]
+AUC_ridge = round(performance(pred_ridge, "auc")@y.values[[1]], 4)
 
-# On trace d'abord la base (ModT Test ou ModAIC Test)
-plot(ROCT_test, col="blue", main="Superposition des courbes ROC (Test)")
+# Tracer la superposition
+pdf("superposition_question5.pdf")
 
-# On ajoute la courbe Ridge en une nouvelle couleur (ex: orange)
-plot(ROC_ridge, col="orange", add=TRUE)
+plot(ROCT_test, col="purple", main="Superposition des courbes ROC : Ridge vs Logistique")
+plot(ROC1_test,col="red",add=TRUE)
+plot(ROC2_test,col="green",add=TRUE)
+plot(ROCAIC_test, col="black", add=TRUE)
+plot(ROC_ridge, col="orange", lwd=2, add=TRUE)
 
-# On ajoute les autres si nécessaire (ModAIC par exemple)
-predprobaAIC_test = predict(ModAIC, newdata = df_test_nouveau, type="response")
-predAIC_test = prediction(predprobaAIC_test, df_test_nouveau$GENRE)
-ROCAIC_test = performance(predAIC_test, "tpr", "fpr")
-plot(ROCAIC_test, col="green", add=TRUE)
+abline(a=0, b=1, lty=2, col="blue") 
+segments(x0=0,y0=1,x1=1,y1=1,lty=2 , col = 'grey') 
+segments(x0=0,y0=0,x1=0,y1=1,lty=2 , col = 'grey') 
 
-# 4. Légende pour comparer
-legend("bottomright", legend=c(
-  paste("ModT (AUC =", round(performance(predT_test,"auc")@y.values[[1]], 4), ")"),
-  paste("ModAIC (AUC =", round(performance(predAIC_test,"auc")@y.values[[1]], 4), ")"),
-  paste("Ridge (AUC =", round(AUC_ridge, 4), ")")
-), col=c("blue", "green", "orange"), lty=1)
+legend("bottomright", 
+       legend=c(paste("ModT (AUC =", AUCT, ")"),
+                paste("Mod1(AUC =", AUC1, ")"), 
+                paste("Mod2(AUC =", AUC2, ")"),
+                paste("ModAIC (AUC =", AUCAIC, ")"), 
+                paste("Ridge (AUC =", AUC_ridge, ")"),
+                "Aléatoire (AUC = 0.5)",
+                "Parfaite (AUC = 1.0)"),
+       col=c("purple", "red", "green", "black", "orange", "blue", "grey"), 
+       lty=1, lwd=c(1,1,1,1,1,2,2))
+
+dev.off()
+
+
+
+
+################
+### Q6
+################
+       
+df_final_test = read.table("Music_2026_test.txt", header=TRUE, sep=";", dec='.')
+
+# Prétraitement identique à la Partie I (Log transformation, pas besoin de scale)
+df_final_test$PAR_SC_V = log(df_final_test$PAR_SC_V)
+df_final_test$PAR_ASC_V = log(df_final_test$PAR_ASC_V)
+
+duplicates_testf = duplicated(t(df_final_test))
+which(duplicates_testf)
+
+df_final_test = df_final_test[,-148:-167]
+dim(df)
+
+# Prédiction des probabilités avec le modèle retenu (ModAIC)
+pred_proba_final = predict(ModAIC, newdata = df_final_test, type = "response")
+
+# Conversion des probabilités en étiquettes (0.5 comme seuil)
+# Si proba > 0.5 alors Jazz (1), sinon Classical (0) 
+final_predictions = ifelse(pred_proba_final > 0.5, "Jazz", "Classical")
+
+# Enregistrement dans le fichier texte (une prédiction par ligne)
+write.table(final_predictions, file = "OUHABAZ-SANCHEZ_test.txt", 
+            row.names = FALSE, col.names = FALSE, quote = FALSE)      
+       
+
+
+## Cohérence des résultats   
+print("Proportions initiales :")
+prop.table(table(df_train_nouveau$GENRE)) 
+# Classical      Jazz 
+# 0.5303402 0.4696598 
+
+print("Proportions prédites :")
+prop.table(table(final_predictions))   
+# Classical      Jazz 
+# 0.3938915 0.6061085 
+# Ceci semble bien cohérent.
